@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Kids Playlist</title>
+    <style>
+        body {
+            background-color: #888;
+        }
+
+        textarea {
+            background-color: #eee;
+        }
+
+        input[type=submit] {
+            width: 128px;
+            line-height: 64px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div id="i"></div>
+</div>
+<div>
+    <strong>Add videos to playlist:</strong><br/>
+    <form id="f" target="_self">
+        <input type="hidden" name="v" id="v">
+        <textarea
+                id="vraw"
+                placeholder="YouTube Video URLs"
+                rows="8" cols="72"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                wrap="off"></textarea>
+        <input type="submit" value="Go">
+    </form>
+</div>
+</body>
+<script type="text/javascript">
+    // parse ?v=a&v=b&v=c query-string param as a list of videoIds:
+    let params = (new URL(document.location)).searchParams;
+    let vids = params.getAll("v").flatMap(v => v.split(','));
+    if (vids.length > 0) {
+        // populate the playlist textarea:
+        const vtext = vids.map(v => {
+            const u = new URL("https://www.youtube.com/watch");
+            u.searchParams.set("v", v);
+            return u.toString();
+        }).join("\r\n");
+        document.getElementById("vraw").value = vtext;
+    }
+
+    // load YouTube JS API:
+    var tag = document.createElement('script');
+    tag.id = 'iframe-demo';
+    tag.src = 'https://www.youtube.com/iframe_api';
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    // called when YT JS API is ready:
+    var player;
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('i', {
+            width: 1280,
+            height: 720,
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange,
+                'onError': onPlayerError
+            }
+        });
+    }
+
+    // when the player is ready, play the video:
+    function onPlayerReady(event) {
+        if (vids.length === 0) return;
+
+        // load the custom playlist of videos:
+        player.cuePlaylist(vids);
+    }
+
+    function onPlayerStateChange(event) {
+        // when the playlist loads, start playing:
+        if (event.data === -1) {
+            player.playVideo();
+        }
+    }
+
+    var errorIndex = null;
+    function onPlayerError(event) {
+        console.log("error = " + event.data);
+        if (event.data !== 2) {
+            errorIndex = player.getPlaylistIndex();
+            setTimeout(nextVideo, 3000);
+        }
+    }
+
+    function nextVideo() {
+        const index = player.getPlaylistIndex();
+        if (index === errorIndex) {
+            const list = player.getPlaylist();
+            if (index < list.length - 1) {
+                player.nextVideo();
+            } else {
+                player.playVideoAt(0);
+            }
+        }
+    }
+
+    function onSubmitPlaylist() {
+        let t = document.getElementById("vraw").value;
+        let lines = t.match(/[^\r\n]+/g);
+        let vids = lines
+            .filter(s => s.match(/^https?:\/\/www\.youtube\.com\/watch/))
+            .map(s => (new URL(s)).searchParams.get("v"));
+        let vcom = vids.join(",");
+        document.getElementById("v").value = vcom;
+        return true;
+    }
+
+    const form = document.getElementById('f');
+    form.addEventListener('submit', onSubmitPlaylist);
+</script>
+</html>
